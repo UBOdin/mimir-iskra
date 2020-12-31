@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration debug="false">
+
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+  
+  <!--+++++++++++++++++++++++  Core  +++++++++++++++++++++++++-->
+  <logger name="org.mimirdb.iskra.Compiler"                      level="DEBUG" />
+  <logger name="org.mimirdb.iskra.exec.TableSource"              level="DEBUG" />
+  
+  <!--+++++++++++++++++++++++  Test +++++++++++++++++++++++++-->
+  <logger name="org.mimirdb.iskra.test.SharedTestResources$"     level="DEBUG" />
+  <logger name="org.mimirdb.iskra.SimpleQueries"                 level="DEBUG" />
+  
+  <root level="ERROR">
+    <appender-ref ref="STDOUT" />
+  </root>
+ 
+</configuration>

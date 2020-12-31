@@ -1,0 +1,7 @@
+/spark-warehouse
+/project/metals.sbt
+/project/project
+/project/target
+/target
+/.bloop
+/.metals
