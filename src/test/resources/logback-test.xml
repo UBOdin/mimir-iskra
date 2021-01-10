@@ -8,12 +8,14 @@
   </appender>
   
   <!--+++++++++++++++++++++++  Core  +++++++++++++++++++++++++-->
-  <logger name="org.mimirdb.iskra.Compiler"                      level="DEBUG" />
-  <logger name="org.mimirdb.iskra.exec.TableSource"              level="DEBUG" />
+  <logger name="org.mimirdb.iskra.Compiler"                          level="DEBUG" />
+  <logger name="org.mimirdb.iskra.exec.TableSource"                  level="DEBUG" />
+  <logger name="org.mimirdb.iskra.exec.BlockNestedLoopJoinIterator"  level="WARN" />
+  <logger name="org.mimirdb.iskra.exec.HashJoinIterator"             level="WARN" />
   
   <!--+++++++++++++++++++++++  Test +++++++++++++++++++++++++-->
-  <logger name="org.mimirdb.iskra.test.SharedTestResources$"     level="DEBUG" />
-  <logger name="org.mimirdb.iskra.SimpleQueries"                 level="DEBUG" />
+  <logger name="org.mimirdb.iskra.test.SharedTestResources$"         level="DEBUG" />
+  <logger name="org.mimirdb.iskra.SimpleQueries"                     level="DEBUG" />
   
   <root level="ERROR">
     <appender-ref ref="STDOUT" />

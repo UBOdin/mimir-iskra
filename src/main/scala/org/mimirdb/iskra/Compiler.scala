@@ -9,8 +9,10 @@ import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.types._
 
 import org.mimirdb.iskra.exec._
+import org.apache.spark.sql.catalyst.plans.{Inner => InnerJoin }
 
 object Compiler
   extends Object
@@ -27,6 +29,9 @@ object Compiler
                 .toIndexedSeq
   }
 
+  def compareOutputs(outputA: Seq[Attribute], outputB: Seq[Attribute]) =
+    outputA.zip(outputB).forall{ case (a, b) => a.name.equalsIgnoreCase(b.name) && a.dataType.equals(b.dataType) }
+
   def compile(plan: LogicalPlan, spark: SparkSession): QueryResultIterator = 
   {
     def FallBackToSpark = {
@@ -39,18 +44,75 @@ object Compiler
       compile(expr, subplan.output).eval(_)
 
     plan match {
-      case _:ReturnAnswer => ???
-      case _:Subquery => ???
       case Project(exprs, subplan) => 
         ProjectIterator(exprs.map { CompileExpr(_, subplan) }, RecurTo(subplan))
+      case Filter(condition, subplan) => 
+      {
+        assert(condition.dataType.equals(BooleanType))
+        val eval = CompileExpr(condition, subplan)
+        FilterIterator( 
+          eval(_).asInstanceOf[Boolean], 
+          RecurTo(subplan)
+        )
+      }
+      case Union(subplans) => 
+      {
+        assert(!subplans.isEmpty, "Union with no inputs")
+        val schema = subplans.head.output
+        assert(
+          subplans.tail.forall { pl => compareOutputs(pl.output, schema) },
+          s"Schemas are different: ${subplans.map { "<"+_.output.map { a => a.name+":"+a.dataType }.mkString(", ")+">" }.mkString("; ") }"
+        )
+        UnionIterator(subplans.map { RecurTo(_) })
+      }
+      case Join(left, right, joinType, None, hint) => 
+      {
+        // outer joins don't make sense without a condition
+        assert(joinType == InnerJoin)
+        BlockNestedLoopJoinIterator(RecurTo(left), RecurTo(right))
+      }
+      case Join(left, right, joinType, Some(condition), hint) => 
+      {
+        val (lhsExprs, rhsExprs, remainder) = 
+          JoinPredicates.getEquiJoinAttributes(
+            condition, 
+            left.outputSet.toSet, 
+            right.outputSet.toSet
+          )
+        assert(lhsExprs.size == rhsExprs.size, "JoinPredicates returned non-equivalent attribute sizes")
+        
+        var ret: QueryResultIterator = 
+          if(lhsExprs.size == 0){
+            // no joinable attributes
+            BlockNestedLoopJoinIterator(RecurTo(left), RecurTo(right))
+          } else {
+            HashJoinIterator(
+              RecurTo(left), 
+              RecurTo(right),
+              lhsExprs.map { CompileExpr(_, left) }.toArray, 
+              rhsExprs.map { CompileExpr(_, right) }.toArray
+            )
+          }
+
+        if(remainder.isDefined){
+          // use the join itself as a basis, since we're using the joint schema
+          val eval = CompileExpr(remainder.get, plan)
+          ret = FilterIterator(eval(_).asInstanceOf[Boolean], ret)
+        }
+
+        /* return */ ret
+      }
+      case subplan:Subquery => RecurTo(subplan)
+      case View(_, output, subplan) => 
+      {
+        assert(compareOutputs(output, subplan.output), "View output doesn't match source")
+        RecurTo(subplan)
+      }
+      case _:ReturnAnswer => ???
       case _:Generate => ???
-      case _:Filter => ???
       case _:Intersect => ???
       case _:Except => ???
-      case _:Union => ???
-      case _:Join => ???
       case _:InsertIntoDir => ???
-      case _:View => ???
       case _:With => ???
       case _:WithWindowDefinition => ???
       case _:Sort => ???
